@@ -19,7 +19,8 @@ public class CloudStorageUtil {
   private static final Map<String, IStorageService> storageServiceMap = new HashMap<>();
 
   public enum CloudStorageType {
-    AZURE("azure");
+    AZURE("azure"),
+    OCI("oci");
     private String type;
 
     private CloudStorageType(String type) {
@@ -33,7 +34,9 @@ public class CloudStorageUtil {
     public static CloudStorageType getByName(String type) {
       if (AZURE.type.equals(type)) {
         return CloudStorageType.AZURE;
-      } else {
+      } else if (OCI.type.equals(type)) {
+        return CloudStorageType.OCI;
+      }else {
         ProjectCommonException.throwClientErrorException(
             ResponseCode.errorUnsupportedCloudStorage,
             ProjectUtil.formatMessage(
@@ -83,24 +86,27 @@ public class CloudStorageUtil {
   private static IStorageService getStorageService(CloudStorageType storageType) {
     String storageKey = PropertiesCache.getInstance().getProperty(JsonKey.ACCOUNT_NAME);
     String storageSecret = PropertiesCache.getInstance().getProperty(JsonKey.ACCOUNT_KEY);
-    return getStorageService(storageType, storageKey, storageSecret);
+    scala.Option<String> storageEndpoint = scala.Option.apply(PropertiesCache.getInstance().getProperty(JsonKey.ACCOUNT_ENDPOINT));
+    return getStorageService(storageType, storageKey, storageSecret,storageEndpoint,"");
   }
 
   private static IStorageService getAnalyticsStorageService(CloudStorageType storageType) {
     String storageKey = PropertiesCache.getInstance().getProperty(JsonKey.ANALYTICS_ACCOUNT_NAME);
     String storageSecret = PropertiesCache.getInstance().getProperty(JsonKey.ANALYTICS_ACCOUNT_KEY);
-    return getStorageService(storageType, storageKey, storageSecret);
+    scala.Option<String> storageEndpoint = scala.Option.apply(PropertiesCache.getInstance().getProperty(JsonKey.ANALYTICS_ACCOUNT_ENDPOINT));
+    return getStorageService(storageType, storageKey, storageSecret,storageEndpoint,"");
   }
 
   private static IStorageService getStorageService(
-      CloudStorageType storageType, String storageKey, String storageSecret) {
+      CloudStorageType storageType, String storageKey, String storageSecret,scala.Option<String> storageEndpoint, String storageRegion ) {
     String compositeKey = storageType.getType() + "-" + storageKey;
     if (storageServiceMap.containsKey(compositeKey)) {
       return storageServiceMap.get(compositeKey);
     }
     synchronized (CloudStorageUtil.class) {
+      scala.Option<String> region = scala.Option.apply(storageRegion);
       StorageConfig storageConfig =
-          new StorageConfig(storageType.getType(), storageKey, storageSecret);
+          new StorageConfig(storageType.getType(), storageKey, storageSecret,storageEndpoint,region);
       IStorageService storageService = StorageServiceFactory.getStorageService(storageConfig);
       storageServiceMap.put(compositeKey, storageService);
     }
